@@ -75,6 +75,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
@@ -124,6 +125,14 @@ fun EldersLauncherApp() {
 fun EldersLauncherScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val launcherController = remember { LauncherController(context) }
+    val voiceAnnouncer = remember { VoiceAnnouncer(context) }
+    
+    DisposableEffect(Unit) {
+        onDispose {
+            voiceAnnouncer.shutdown()
+        }
+    }
+    
     val pagerState = rememberPagerState(pageCount = { launcherController.cards.size })
     val coroutineScope = rememberCoroutineScope()
     val hapticFeedback = LocalHapticFeedback.current
@@ -146,6 +155,28 @@ fun EldersLauncherScreen(modifier: Modifier = Modifier) {
 
     LaunchedEffect(Unit) {
         launcherController.refreshInstalledApps()
+    }
+
+    LaunchedEffect(currentCard, isManageMode) {
+        if (isManageMode) {
+            return@LaunchedEffect
+        }
+
+        val card = currentCard ?: return@LaunchedEffect
+        
+        // 如果是时钟卡片，播报具体时间
+        val announcementText = if (card.type == LauncherCardType.CLOCK) {
+            val calendar = java.util.Calendar.getInstance()
+            val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+            val minute = calendar.get(java.util.Calendar.MINUTE)
+            val timeText = VoiceAnnouncer.formatTimeForSpeech(hour, minute)
+            "现在时间是$timeText"
+        } else {
+            val appLabel = launcherController.labelFor(card.packageName)
+            cardTitle(card, appLabel)
+        }
+        
+        voiceAnnouncer.announce(announcementText)
     }
 
     LaunchedEffect(launcherController.cards.size) {
@@ -278,6 +309,20 @@ fun EldersLauncherScreen(modifier: Modifier = Modifier) {
                     isManageMode = isManageMode,
                     onTap = {
                         if (!isManageMode) {
+                            // 如果是时钟卡片，播报当前时间
+                            val announcementText = if (card.type == LauncherCardType.CLOCK) {
+                                val calendar = java.util.Calendar.getInstance()
+                                val hour = calendar.get(java.util.Calendar.HOUR_OF_DAY)
+                                val minute = calendar.get(java.util.Calendar.MINUTE)
+                                val timeText = VoiceAnnouncer.formatTimeForSpeech(hour, minute)
+                                "正在打开闹钟，现在时间是$timeText"
+                            } else {
+                                val appLabel = launcherController.labelFor(card.packageName)
+                                val cardName = cardTitle(card, appLabel)
+                                "正在打开$cardName"
+                            }
+                            voiceAnnouncer.announce(announcementText)
+                            
                             val launched = launchCard(context, card)
                             if (!launched) {
                                 Toast.makeText(

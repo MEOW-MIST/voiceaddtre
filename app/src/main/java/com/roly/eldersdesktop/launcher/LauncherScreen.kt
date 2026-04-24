@@ -117,12 +117,28 @@ private const val SETTINGS_HOLD_PROGRESS_DELAY_MS = 180L
 
 @Composable
 fun EldersLauncherApp() {
-    EldersLauncherScreen()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    
+    if (showSettings) {
+        val context = LocalContext.current
+        val voiceAnnouncer = remember { VoiceAnnouncer(context) }
+        SettingsScreen(
+            voiceAnnouncer = voiceAnnouncer,
+            onBack = { showSettings = false }
+        )
+    } else {
+        EldersLauncherScreen(
+            onOpenSettings = { showSettings = true }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun EldersLauncherScreen(modifier: Modifier = Modifier) {
+fun EldersLauncherScreen(
+    modifier: Modifier = Modifier,
+    onOpenSettings: () -> Unit = {}
+) {
     val context = LocalContext.current
     val launcherController = remember { LauncherController(context) }
     val voiceAnnouncer = remember { VoiceAnnouncer(context) }
@@ -289,7 +305,8 @@ fun EldersLauncherScreen(modifier: Modifier = Modifier) {
                         settingsHoldProgress = 0f
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                     }
-                }
+                },
+                onOpenSettings = onOpenSettings
             )
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -383,7 +400,8 @@ private fun StatusSummaryCard(
     touchSlop: Float,
     onHoldPreview: () -> Unit,
     onHoldProgress: (Float) -> Unit,
-    onEnterManageMode: () -> Unit
+    onEnterManageMode: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
@@ -442,7 +460,8 @@ private fun StatusSummaryCard(
                 touchSlop = touchSlop,
                 onHoldPreview = onHoldPreview,
                 onHoldProgress = onHoldProgress,
-                onEnterManageMode = onEnterManageMode
+                onEnterManageMode = onEnterManageMode,
+                onClick = onOpenSettings
             )
         }
     }
@@ -1159,7 +1178,8 @@ private fun HoldToManageButton(
     touchSlop: Float,
     onHoldPreview: () -> Unit,
     onHoldProgress: (Float) -> Unit,
-    onEnterManageMode: () -> Unit
+    onEnterManageMode: () -> Unit,
+    onClick: () -> Unit
 ) {
     val containerColor by animateColorAsState(
         targetValue = if (isManageMode) {
@@ -1189,7 +1209,10 @@ private fun HoldToManageButton(
                 onHoldPreview = onHoldPreview,
                 onHoldProgress = onHoldProgress,
                 onHoldTriggered = onEnterManageMode
-            ),
+            )
+            .clickable(enabled = !isManageMode && holdProgress == 0f) {
+                onClick()
+            },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.elevatedCardColors(
             containerColor = containerColor

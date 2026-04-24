@@ -1,54 +1,19 @@
 package com.roly.eldersdesktop.launcher
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.speech.tts.TextToSpeech
 import java.util.Locale
 
 class VoiceAnnouncer(private val context: Context) {
     private var textToSpeech: TextToSpeech? = null
     private var isInitialized = false
-
-    init {
-        initializeTTS()
-    }
-
-    private fun initializeTTS() {
-        textToSpeech = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val result = textToSpeech?.setLanguage(Locale.CHINA)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    textToSpeech?.setLanguage(Locale.US)
-                }
-                isInitialized = true
-            }
-        }
-    }
-
-    fun announce(text: String) {
-        if (!isInitialized) {
-            return
-        }
-
-        textToSpeech?.apply {
-            stop()
-            speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
-        }
-    }
-
-    fun shutdown() {
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
-        textToSpeech = null
-        isInitialized = false
-    }
-
-    fun setEnabled(enabled: Boolean) {
-        if (!enabled) {
-            textToSpeech?.stop()
-        }
-    }
-
+    private var isEnabled = true
+    
     companion object {
+        private const val PREFS_NAME = "voice_announcer_prefs"
+        private const val KEY_VOICE_ENABLED = "voice_enabled"
+        
         /**
          * 将时间转换为中文语音播报格式
          * 例如：14:05 -> "十四点零五分"
@@ -118,5 +83,60 @@ class VoiceAnnouncer(private val context: Context) {
                 else -> "${digitToChinese(tens)}十${if (units > 0) digitToChinese(units) else ""}"
             }
         }
+    }
+    
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    init {
+        initializeTTS()
+        loadEnabledState()
+    }
+    
+    private fun loadEnabledState() {
+        isEnabled = prefs.getBoolean(KEY_VOICE_ENABLED, true)
+    }
+    
+    fun isVoiceEnabled(): Boolean {
+        return isEnabled
+    }
+    
+    fun setVoiceEnabled(enabled: Boolean) {
+        isEnabled = enabled
+        prefs.edit().putBoolean(KEY_VOICE_ENABLED, enabled).apply()
+        if (!enabled) {
+            textToSpeech?.stop()
+        }
+    }
+
+    private fun initializeTTS() {
+        textToSpeech = TextToSpeech(context) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                val result = textToSpeech?.setLanguage(Locale.CHINA)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    textToSpeech?.setLanguage(Locale.US)
+                }
+                isInitialized = true
+            }
+        }
+    }
+
+    fun announce(text: String) {
+        if (!isInitialized || !isEnabled) {
+            return
+        }
+
+        textToSpeech?.apply {
+            stop()
+            speak(text, TextToSpeech.QUEUE_FLUSH, null, null)
+        }
+    }
+
+    fun shutdown() {
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        isInitialized = false
     }
 }
